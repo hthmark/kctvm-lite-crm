@@ -9,6 +9,7 @@ const smsRoutes = require('./routes/sms');
 const missedCallRoutes = require('./routes/missed-call');
 const adminRoutes = require('./routes/admin');
 const leadsRoutes = require('./routes/leads');
+const paymentLinkRoutes = require('./routes/payment-link');
 const { startFollowUpPoller } = require('./lib/poller');
 
 const app = express();
@@ -21,6 +22,7 @@ app.use(smsRoutes);
 app.use(missedCallRoutes);
 app.use(adminRoutes);
 app.use(leadsRoutes);
+app.use(paymentLinkRoutes);
 
 const PORT = process.env.PORT || 3000;
 

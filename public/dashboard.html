@@ -38,6 +38,16 @@
           <span>Total</span>
           <span id="customerGrandTotal">$0</span>
         </div>
+
+        <div class="border-t border-slate-200 mt-3 pt-3">
+          <button id="createPaymentLinkBtn" onclick="createPaymentLink()" class="w-full bg-slate-900 text-white text-sm font-medium px-3 py-2 rounded hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed">Create Payment Link</button>
+          <div id="paymentLinkError" class="hidden mt-2 text-xs text-red-600"></div>
+          <div id="paymentLinkResult" class="hidden mt-2 flex gap-2">
+            <input id="paymentLinkUrl" type="text" readonly class="flex-1 border border-slate-300 rounded px-2 py-1 text-xs bg-slate-50 text-slate-700">
+            <button onclick="copyPaymentLink()" class="text-xs px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 flex-shrink-0">Copy</button>
+          </div>
+          <div id="paymentLinkCopied" class="hidden mt-1 text-xs text-green-600">Copied!</div>
+        </div>
       </div>
       <div class="bg-white rounded-lg shadow-sm p-4">
         <h3 class="text-sm font-semibold text-slate-700 mb-2">Tech Payout</h3>
@@ -331,6 +341,7 @@ const TECH_WIRE = 40;
 
 let resourcesInitialized = false;
 let tvs = [makeDefaultTv()];
+let currentCustomerTotal = 0;
 
 function makeDefaultTv() {
   return { size: 'under65', mount: 'own', oversized: false, wall: 'drywall', wire: false };
@@ -495,6 +506,81 @@ function renderTotals() {
   document.getElementById('techBreakdown').innerHTML = techHtml;
   document.getElementById('customerGrandTotal').textContent = '$' + customerGrand;
   document.getElementById('techGrandTotal').textContent = '$' + techGrand;
+
+  currentCustomerTotal = customerGrand;
+  resetPaymentLinkUI();
+}
+
+function resetPaymentLinkUI() {
+  document.getElementById('paymentLinkResult').classList.add('hidden');
+  document.getElementById('paymentLinkError').classList.add('hidden');
+  document.getElementById('paymentLinkCopied').classList.add('hidden');
+  const btn = document.getElementById('createPaymentLinkBtn');
+  btn.disabled = false;
+  btn.textContent = 'Create Payment Link';
+}
+
+function buildJobDescription() {
+  const count = tvs.length;
+  const fixedCount = tvs.filter(tv => tv.mount === 'fixed').length;
+  const articulatingCount = tvs.filter(tv => tv.mount === 'articulating').length;
+  const wireCount = tvs.filter(tv => tv.wire).length;
+  const brickCount = tvs.filter(tv => tv.wall === 'brick').length;
+
+  const parts = [];
+  if (fixedCount) parts.push(`${fixedCount} fixed mount${fixedCount > 1 ? 's' : ''}`);
+  if (articulatingCount) parts.push(`${articulatingCount} articulating mount${articulatingCount > 1 ? 's' : ''}`);
+  if (brickCount) parts.push(`${brickCount} brick wall${brickCount > 1 ? 's' : ''}`);
+  if (wireCount) parts.push('wire concealment');
+
+  const detail = parts.length ? ` (${parts.join(', ')})` : '';
+  return `TV Mounting - ${count} TV${count > 1 ? 's' : ''}${detail}`;
+}
+
+async function createPaymentLink() {
+  const btn = document.getElementById('createPaymentLinkBtn');
+  const errorEl = document.getElementById('paymentLinkError');
+  const resultEl = document.getElementById('paymentLinkResult');
+  const copiedEl = document.getElementById('paymentLinkCopied');
+
+  errorEl.classList.add('hidden');
+  resultEl.classList.add('hidden');
+  copiedEl.classList.add('hidden');
+  btn.disabled = true;
+  btn.textContent = 'Creating link...';
+
+  try {
+    const description = buildJobDescription();
+    const res = await fetch('/api/create-payment-link', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ amount: currentCustomerTotal, description })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to create payment link');
+
+    document.getElementById('paymentLinkUrl').value = data.url;
+    resultEl.classList.remove('hidden');
+  } catch (err) {
+    errorEl.textContent = err.message || "Couldn't create payment link — check Stripe connection";
+    errorEl.classList.remove('hidden');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Create Payment Link';
+  }
+}
+
+async function copyPaymentLink() {
+  const input = document.getElementById('paymentLinkUrl');
+  try {
+    await navigator.clipboard.writeText(input.value);
+  } catch (err) {
+    input.select();
+    document.execCommand('copy');
+  }
+  const copiedEl = document.getElementById('paymentLinkCopied');
+  copiedEl.classList.remove('hidden');
+  setTimeout(() => copiedEl.classList.add('hidden'), 2000);
 }
 </script>
 
