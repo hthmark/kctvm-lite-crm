@@ -8,11 +8,61 @@
 </head>
 <body class="bg-slate-100 text-slate-900 min-h-screen">
 
-<header class="bg-white border-b border-slate-200 px-6 py-4">
-  <h1 class="text-lg font-semibold">Kansas City TV Mounting — Lead Board</h1>
+<header class="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between">
+  <h1 class="text-lg font-semibold">Kansas City TV Mounting</h1>
+  <nav class="flex gap-2">
+    <button id="tabBoardBtn" onclick="showTab('board')" class="text-sm font-medium px-3 py-1.5 rounded-md bg-slate-900 text-white">Job Board</button>
+    <button id="tabResourcesBtn" onclick="showTab('resources')" class="text-sm font-medium px-3 py-1.5 rounded-md text-slate-600 hover:bg-slate-100">Resources</button>
+  </nav>
 </header>
 
 <main id="board" class="flex gap-4 p-6 overflow-x-auto items-start"></main>
+
+<section id="resourcesView" class="hidden p-6 max-w-6xl mx-auto space-y-8">
+  <div>
+    <h2 class="text-lg font-semibold mb-1">Pricing Calculator</h2>
+    <p class="text-sm text-slate-500 mb-4">Internal reference only — nothing here is saved or sent anywhere.</p>
+
+    <div class="bg-white rounded-lg shadow-sm p-4 mb-4 flex items-center gap-3">
+      <label for="tvCountSelect" class="text-sm font-medium text-slate-700">Number of TVs</label>
+      <select id="tvCountSelect" class="border border-slate-300 rounded px-2 py-1 text-sm" onchange="setTvCount(this.value)"></select>
+    </div>
+
+    <div id="tvFormsContainer" class="space-y-4 mb-6"></div>
+
+    <div class="grid sm:grid-cols-2 gap-4">
+      <div class="bg-white rounded-lg shadow-sm p-4">
+        <h3 class="text-sm font-semibold text-slate-700 mb-2">Customer Price</h3>
+        <div id="customerBreakdown" class="text-sm text-slate-600"></div>
+        <div class="border-t border-slate-200 mt-2 pt-2 flex items-center justify-between font-semibold text-slate-900">
+          <span>Total</span>
+          <span id="customerGrandTotal">$0</span>
+        </div>
+      </div>
+      <div class="bg-white rounded-lg shadow-sm p-4">
+        <h3 class="text-sm font-semibold text-slate-700 mb-2">Tech Payout</h3>
+        <div id="techBreakdown" class="text-sm text-slate-600"></div>
+        <div class="border-t border-slate-200 mt-2 pt-2 flex items-center justify-between font-semibold text-slate-900">
+          <span>Total</span>
+          <span id="techGrandTotal">$0</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <h2 class="text-lg font-semibold mb-3">Questions To Ask Customers</h2>
+    <ol class="list-decimal list-inside bg-white rounded-lg shadow-sm p-4 space-y-2 text-sm text-slate-700">
+      <li>How many TVs do you need mounted?</li>
+      <li>For each TV: what size is it (under 65" or 65"+)?</li>
+      <li>Do you already have a mount, or do you need one? (fixed = flat against wall, articulating = tilts/swivels)</li>
+      <li>What kind of wall is it going on — drywall or brick?</li>
+      <li>Do you want the wires/cables hidden in the wall? (requires an existing outlet near/below the TV location)</li>
+      <li>What city are you in?</li>
+      <li>What day/time works best for you?</li>
+    </ol>
+  </div>
+</section>
 
 <!-- Lead detail panel -->
 <div id="panelOverlay" class="hidden fixed inset-0 bg-black/30 z-40" onclick="closePanel()"></div>
@@ -237,6 +287,215 @@ function escapeHtml(str) {
 
 fetchLeads();
 setInterval(fetchLeads, 15000);
+
+// ── RESOURCES TAB ──────────────────────────────────────────────────────────
+
+function showTab(tab) {
+  const board = document.getElementById('board');
+  const resources = document.getElementById('resourcesView');
+  const boardBtn = document.getElementById('tabBoardBtn');
+  const resourcesBtn = document.getElementById('tabResourcesBtn');
+  const active = ['bg-slate-900', 'text-white'];
+  const inactive = ['text-slate-600'];
+
+  if (tab === 'resources') {
+    board.classList.add('hidden');
+    resources.classList.remove('hidden');
+    resourcesBtn.classList.add(...active);
+    resourcesBtn.classList.remove(...inactive);
+    boardBtn.classList.remove(...active);
+    boardBtn.classList.add(...inactive);
+    initResourcesTabOnce();
+  } else {
+    resources.classList.add('hidden');
+    board.classList.remove('hidden');
+    boardBtn.classList.add(...active);
+    boardBtn.classList.remove(...inactive);
+    resourcesBtn.classList.remove(...active);
+    resourcesBtn.classList.add(...inactive);
+  }
+}
+
+const CUSTOMER_BASE = { under65: { first: 149, additional: 89 }, '65plus': { first: 169, additional: 99 } };
+const CUSTOMER_FIXED_MOUNT = 80;
+const CUSTOMER_ARTICULATING_MOUNT = 120;
+const CUSTOMER_ARTICULATING_SPECIAL_ORDER = 230;
+const CUSTOMER_BRICK = 60;
+const CUSTOMER_WIRE = 150;
+
+const TECH_BASE_FIRST = { under65: 60, '65plus': 70 };
+const TECH_BASE_ADDITIONAL = 40;
+const TECH_ARTICULATING = 10;
+const TECH_BRICK = 30;
+const TECH_WIRE = 40;
+
+let resourcesInitialized = false;
+let tvs = [makeDefaultTv()];
+
+function makeDefaultTv() {
+  return { size: 'under65', mount: 'own', oversized: false, wall: 'drywall', wire: false };
+}
+
+function initResourcesTabOnce() {
+  if (resourcesInitialized) return;
+  resourcesInitialized = true;
+  const select = document.getElementById('tvCountSelect');
+  select.innerHTML = Array.from({ length: 10 }, (_, i) => `<option value="${i + 1}">${i + 1}</option>`).join('');
+  select.value = String(tvs.length);
+  renderTvForms();
+  renderTotals();
+}
+
+function setTvCount(countStr) {
+  const count = parseInt(countStr, 10);
+  if (count > tvs.length) {
+    while (tvs.length < count) tvs.push(makeDefaultTv());
+  } else {
+    tvs.length = count;
+  }
+  renderTvForms();
+  renderTotals();
+}
+
+function tvAppliesOversizedFlag(tv) {
+  return tv.size === '65plus' && (tv.mount === 'fixed' || tv.mount === 'articulating');
+}
+
+function updateTv(index, field, value) {
+  tvs[index][field] = value;
+  if ((field === 'mount' || field === 'size') && !tvAppliesOversizedFlag(tvs[index])) {
+    tvs[index].oversized = false;
+  }
+  renderTvForms();
+  renderTotals();
+}
+
+function renderTvForms() {
+  const container = document.getElementById('tvFormsContainer');
+  container.innerHTML = tvs.map((tv, i) => {
+    const showOversizedArticulating = tv.size === '65plus' && tv.mount === 'articulating';
+    const showOversizedFixed = tv.size === '65plus' && tv.mount === 'fixed';
+    return `
+    <div class="bg-white rounded-lg shadow-sm p-4">
+      <div class="font-semibold text-sm text-slate-700 mb-3">TV #${i + 1}${i === 0 ? '' : ' (additional)'}</div>
+      <div class="grid sm:grid-cols-4 gap-4">
+        <div>
+          <div class="text-xs font-medium text-slate-500 mb-1">Size</div>
+          <select onchange="updateTv(${i}, 'size', this.value)" class="w-full border border-slate-300 rounded px-2 py-1 text-sm">
+            <option value="under65" ${tv.size === 'under65' ? 'selected' : ''}>Under 65"</option>
+            <option value="65plus" ${tv.size === '65plus' ? 'selected' : ''}>65" or larger</option>
+          </select>
+        </div>
+        <div>
+          <div class="text-xs font-medium text-slate-500 mb-1">Mount</div>
+          <select onchange="updateTv(${i}, 'mount', this.value)" class="w-full border border-slate-300 rounded px-2 py-1 text-sm">
+            <option value="own" ${tv.mount === 'own' ? 'selected' : ''}>Has own mount</option>
+            <option value="fixed" ${tv.mount === 'fixed' ? 'selected' : ''}>Needs fixed mount</option>
+            <option value="articulating" ${tv.mount === 'articulating' ? 'selected' : ''}>Needs articulating mount</option>
+          </select>
+          ${showOversizedArticulating ? `
+          <label class="flex items-center gap-1.5 mt-1.5 text-xs text-slate-500">
+            <input type="checkbox" onchange="updateTv(${i}, 'oversized', this.checked)" ${tv.oversized ? 'checked' : ''}>
+            TV is over 86" (special order)
+          </label>` : ''}
+          ${showOversizedFixed ? `
+          <label class="flex items-center gap-1.5 mt-1.5 text-xs text-slate-500">
+            <input type="checkbox" onchange="updateTv(${i}, 'oversized', this.checked)" ${tv.oversized ? 'checked' : ''}>
+            TV is over 110" (special order)
+          </label>` : ''}
+        </div>
+        <div>
+          <div class="text-xs font-medium text-slate-500 mb-1">Wall</div>
+          <select onchange="updateTv(${i}, 'wall', this.value)" class="w-full border border-slate-300 rounded px-2 py-1 text-sm">
+            <option value="drywall" ${tv.wall === 'drywall' ? 'selected' : ''}>Drywall</option>
+            <option value="brick" ${tv.wall === 'brick' ? 'selected' : ''}>Brick</option>
+          </select>
+        </div>
+        <div>
+          <div class="text-xs font-medium text-slate-500 mb-1">Wire Concealment</div>
+          <select onchange="updateTv(${i}, 'wire', this.value === 'yes')" class="w-full border border-slate-300 rounded px-2 py-1 text-sm">
+            <option value="no" ${!tv.wire ? 'selected' : ''}>No</option>
+            <option value="yes" ${tv.wire ? 'selected' : ''}>Yes</option>
+          </select>
+        </div>
+      </div>
+      ${tv.oversized && tvAppliesOversizedFlag(tv) ? '<div class="mt-2 text-xs font-medium text-orange-600">Special order — ~2 day delay</div>' : ''}
+    </div>`;
+  }).join('');
+}
+
+function calcTv(tv, index) {
+  const isFirst = index === 0;
+
+  const customerBase = isFirst ? CUSTOMER_BASE[tv.size].first : CUSTOMER_BASE[tv.size].additional;
+  let customerMount = 0;
+  let specialOrder = false;
+  if (tv.mount === 'fixed') {
+    customerMount = CUSTOMER_FIXED_MOUNT;
+    if (tv.size === '65plus' && tv.oversized) specialOrder = true;
+  } else if (tv.mount === 'articulating') {
+    if (tv.size === '65plus' && tv.oversized) {
+      customerMount = CUSTOMER_ARTICULATING_SPECIAL_ORDER;
+      specialOrder = true;
+    } else {
+      customerMount = CUSTOMER_ARTICULATING_MOUNT;
+    }
+  }
+  const customerBrick = tv.wall === 'brick' ? CUSTOMER_BRICK : 0;
+  const customerWire = tv.wire ? CUSTOMER_WIRE : 0;
+  const customerTotal = customerBase + customerMount + customerBrick + customerWire;
+
+  // Tech payout: size only affects TV #1's base — every additional TV pays a
+  // flat $40 base regardless of that TV's size. Fixed mount has no tech add-on.
+  const techBase = isFirst ? TECH_BASE_FIRST[tv.size] : TECH_BASE_ADDITIONAL;
+  const techArticulating = tv.mount === 'articulating' ? TECH_ARTICULATING : 0;
+  const techBrick = tv.wall === 'brick' ? TECH_BRICK : 0;
+  const techWire = tv.wire ? TECH_WIRE : 0;
+  const techTotal = techBase + techArticulating + techBrick + techWire;
+
+  return { customerBase, customerMount, customerBrick, customerWire, customerTotal,
+           techBase, techArticulating, techBrick, techWire, techTotal, specialOrder };
+}
+
+function renderTotals() {
+  let customerGrand = 0;
+  let techGrand = 0;
+  let customerHtml = '';
+  let techHtml = '';
+
+  tvs.forEach((tv, i) => {
+    const c = calcTv(tv, i);
+    customerGrand += c.customerTotal;
+    techGrand += c.techTotal;
+
+    customerHtml += `
+      <div class="py-2 border-b border-slate-100 last:border-0">
+        <div class="flex items-center justify-between font-medium text-slate-800">
+          <span>TV #${i + 1}${c.specialOrder ? ' <span class="text-orange-600 text-xs font-normal">(special order)</span>' : ''}</span>
+          <span>$${c.customerTotal}</span>
+        </div>
+        <div class="text-xs text-slate-400">
+          Labor $${c.customerBase}${c.customerMount ? ` + Mount $${c.customerMount}` : ''}${c.customerBrick ? ` + Brick $${c.customerBrick}` : ''}${c.customerWire ? ` + Wire $${c.customerWire}` : ''}
+        </div>
+      </div>`;
+
+    techHtml += `
+      <div class="py-2 border-b border-slate-100 last:border-0">
+        <div class="flex items-center justify-between font-medium text-slate-800">
+          <span>TV #${i + 1}</span>
+          <span>$${c.techTotal}</span>
+        </div>
+        <div class="text-xs text-slate-400">
+          Base $${c.techBase}${c.techArticulating ? ` + Articulating $${c.techArticulating}` : ''}${c.techBrick ? ` + Brick $${c.techBrick}` : ''}${c.techWire ? ` + Wire $${c.techWire}` : ''}
+        </div>
+      </div>`;
+  });
+
+  document.getElementById('customerBreakdown').innerHTML = customerHtml;
+  document.getElementById('techBreakdown').innerHTML = techHtml;
+  document.getElementById('customerGrandTotal').textContent = '$' + customerGrand;
+  document.getElementById('techGrandTotal').textContent = '$' + techGrand;
+}
 </script>
 
 </body>
