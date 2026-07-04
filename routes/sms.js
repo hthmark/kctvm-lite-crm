@@ -14,7 +14,8 @@ function parseInbound(req) {
   const payload = req.body?.data?.payload;
   return {
     from: payload?.from?.phone_number || null,
-    text: (payload?.text || '').trim()
+    text: (payload?.text || '').trim(),
+    direction: payload?.direction || null
   };
 }
 
@@ -38,9 +39,24 @@ async function generateReply(inboundText) {
 router.post('/webhook/sms-inbound', async (req, res) => {
   res.status(200).json({ received: true });
   try {
-    const { from, text } = parseInbound(req);
+    const { from, text, direction } = parseInbound(req);
     if (!from) return;
     const phone = normalizePhone(from);
+
+    // Self-loop guard — must run before any DB reads or Anthropic calls.
+    // Telnyx can echo our own outbound sends back through this same webhook;
+    // without this, a reply to a customer creates a phantom lead for our
+    // own business number and Telnyx rejects the follow-up send because
+    // source and destination are identical.
+    if (direction && direction !== 'inbound') {
+      console.log('[Webhook] Ignoring non-inbound event (direction: ' + direction + ')');
+      return;
+    }
+    const businessNumber = normalizePhone(process.env.TELNYX_PHONE_NUMBER);
+    if (phone === businessNumber) {
+      console.log('[Webhook] Ignoring self-loop message from business number');
+      return;
+    }
 
     let lead = null;
     try {
