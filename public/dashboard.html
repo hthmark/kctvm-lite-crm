@@ -65,6 +65,7 @@
     <ol class="list-decimal list-inside bg-white rounded-lg shadow-sm p-4 space-y-2 text-sm text-slate-700">
       <li>How many TVs do you need mounted?</li>
       <li>For each TV: what size is it (under 65" or 65"+)?</li>
+      <li>If the TV is 65" or larger: can someone at the home help lift it onto the mount?</li>
       <li>Do you already have a mount, or do you need one? (fixed = flat against wall, articulating = tilts/swivels)</li>
       <li>What kind of wall is it going on — drywall or brick?</li>
       <li>Do you want the wires/cables hidden in the wall? (requires an existing outlet near/below the TV location)</li>
@@ -344,7 +345,7 @@ let tvs = [makeDefaultTv()];
 let currentCustomerTotal = 0;
 
 function makeDefaultTv() {
-  return { size: 'under65', mount: 'own', oversized: false, wall: 'drywall', wire: false };
+  return { size: 'under65', mount: 'own', oversized: false, wall: 'drywall', wire: false, canLift: false };
 }
 
 function initResourcesTabOnce() {
@@ -376,6 +377,9 @@ function updateTv(index, field, value) {
   tvs[index][field] = value;
   if ((field === 'mount' || field === 'size') && !tvAppliesOversizedFlag(tvs[index])) {
     tvs[index].oversized = false;
+  }
+  if (field === 'size' && tvs[index].size !== '65plus') {
+    tvs[index].canLift = false;
   }
   renderTvForms();
   renderTotals();
@@ -430,6 +434,11 @@ function renderTvForms() {
           </select>
         </div>
       </div>
+      ${tv.size === '65plus' ? `
+      <label class="flex items-center gap-1.5 mt-3 text-xs text-slate-500">
+        <input type="checkbox" onchange="updateTv(${i}, 'canLift', this.checked)" ${tv.canLift ? 'checked' : ''}>
+        Can customer help lift?
+      </label>` : ''}
       ${tv.oversized && tvAppliesOversizedFlag(tv) ? '<div class="mt-2 text-xs font-medium text-orange-600">Special order — ~2 day delay</div>' : ''}
     </div>`;
   }).join('');
