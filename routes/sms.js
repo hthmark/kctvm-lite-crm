@@ -6,6 +6,7 @@ const anthropic = require('../lib/anthropic');
 const { sendSMS } = require('../lib/telnyx');
 const { normalizePhone } = require('../lib/phone');
 const { findLeadByPhone, createLead, markLeadContacted, logMessage } = require('../lib/leads');
+const { alertOwner, truncate } = require('../lib/owner-alert');
 const { CONCIERGE_SYSTEM_PROMPT } = require('../concierge-prompt');
 
 const FALLBACK_REPLY = "Hey! Thanks for reaching out to Kansas City TV Mounting — Gabe will get right back to you with details!";
@@ -84,6 +85,8 @@ router.post('/webhook/sms-inbound', async (req, res) => {
       } catch (err) {
         console.error('[Webhook] Inbound message insert error:', err.message);
       }
+
+      await alertOwner(`New lead: ${phone}. First message: "${truncate(text)}"`);
 
       const reply = await generateReply(text);
 

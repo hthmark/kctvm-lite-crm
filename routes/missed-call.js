@@ -5,6 +5,7 @@ const router = express.Router();
 const { sendSMS } = require('../lib/telnyx');
 const { normalizePhone } = require('../lib/phone');
 const { findLeadByPhone, createLead, markLeadContacted, logMessage } = require('../lib/leads');
+const { alertOwner } = require('../lib/owner-alert');
 
 const MISSED_CALL_BODY = '[Missed Call]';
 const MISSED_CALL_REPLY = "Hi, this is Gabe from Kansas City TV Mounting. So sorry I missed your call! How can I help?";
@@ -38,6 +39,8 @@ router.post('/webhook/missed-call', async (req, res) => {
       } catch (err) {
         console.error('[MissedCall] Inbound message insert error:', err.message);
       }
+
+      await alertOwner(`New lead (missed call): ${phone}`);
 
       try {
         await sendSMS(phone, MISSED_CALL_REPLY);
