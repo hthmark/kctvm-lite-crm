@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KCTVM Lite CRM</title>
+<script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-100 text-slate-900 min-h-screen">
+
+<header class="bg-white border-b border-slate-200 px-6 py-4">
+  <h1 class="text-lg font-semibold">Kansas City TV Mounting — Lead Board</h1>
+</header>
+
+<main id="board" class="flex gap-4 p-6 overflow-x-auto items-start"></main>
+
+<!-- Lead detail panel -->
+<div id="panelOverlay" class="hidden fixed inset-0 bg-black/30 z-40" onclick="closePanel()"></div>
+<div id="panel" class="hidden fixed top-0 right-0 h-full w-full sm:w-[420px] bg-white shadow-2xl z-50 flex flex-col">
+  <div class="flex items-center justify-between px-4 py-3 border-b border-slate-200">
+    <div class="min-w-0">
+      <input id="panelName" class="font-semibold text-base w-full outline-none border-b border-transparent focus:border-slate-300" placeholder="Name">
+      <input id="panelCity" class="text-sm text-slate-500 w-full outline-none border-b border-transparent focus:border-slate-300 mt-0.5" placeholder="City">
+    </div>
+    <button onclick="closePanel()" class="text-slate-400 hover:text-slate-700 text-xl leading-none px-2">&times;</button>
+  </div>
+
+  <div class="px-4 py-2 border-b border-slate-100 flex items-center justify-between">
+    <span id="panelPhone" class="text-xs text-slate-400"></span>
+    <button id="clearFollowUpBtn" onclick="clearFollowUp()" class="hidden text-xs px-2 py-1 rounded bg-orange-100 text-orange-700 hover:bg-orange-200">Clear Follow-Up Flag</button>
+  </div>
+
+  <div id="thread" class="flex-1 overflow-y-auto px-4 py-3 space-y-2 bg-slate-50"></div>
+
+  <div class="border-t border-slate-200 p-3 flex gap-2">
+    <input id="messageInput" type="text" placeholder="Type a message..." class="flex-1 border border-slate-300 rounded px-3 py-2 text-sm outline-none focus:border-slate-500" onkeydown="if(event.key==='Enter') sendMessage()">
+    <button onclick="sendMessage()" class="bg-slate-900 text-white text-sm px-4 py-2 rounded hover:bg-slate-700">Send</button>
+  </div>
+</div>
+
+<script>
+const COLUMNS = ['Lead', 'Following Up', 'Scheduling', 'Payment Sent', 'Payment Confirmed', 'Job Complete', 'Cancelled', 'Rescheduled'];
+
+let leads = [];
+let currentLeadId = null;
+let threadPollTimer = null;
+
+async function fetchLeads() {
+  try {
+    const res = await fetch('/api/leads');
+    leads = await res.json();
+    renderBoard();
+  } catch (err) {
+    console.error('Failed to fetch leads', err);
+  }
+}
+
+function renderBoard() {
+  const board = document.getElementById('board');
+  board.innerHTML = '';
+  COLUMNS.forEach(col => {
+    const colLeads = leads.filter(l => l.status === col);
+    const colEl = document.createElement('div');
+    colEl.className = 'flex-shrink-0 w-72 bg-slate-200/60 rounded-lg p-2';
+    colEl.ondragover = (e) => e.preventDefault();
+    colEl.ondrop = (e) => onDrop(e, col);
+
+    colEl.innerHTML = `
+      <div class="flex items-center justify-between px-2 py-1 mb-2">
+        <span class="text-sm font-semibold text-slate-700">${col}</span>
+        <span class="text-xs text-slate-400">${colLeads.length}</span>
+      </div>
+      <div class="space-y-2"></div>
+    `;
+
+    const cardsWrap = colEl.querySelector('div.space-y-2');
+    colLeads.forEach(lead => cardsWrap.appendChild(renderCard(lead)));
+    board.appendChild(colEl);
+  });
+}
+
+function renderCard(lead) {
+  const card = document.createElement('div');
+  card.className = 'bg-white rounded-md shadow-sm p-3 cursor-pointer hover:shadow-md border border-transparent hover:border-slate-300';
+  card.draggable = true;
+  card.dataset.id = lead.id;
+  card.ondragstart = (e) => e.dataTransfer.setData('text/plain', lead.id);
+  card.onclick = () => openPanel(lead.id);
+
+  const title = lead.name || lead.phone;
+  const snippet = lead.last_message_snippet || '';
+
+  card.innerHTML = `
+    <div class="flex items-start justify-between gap-2">
+      <span class="font-medium text-sm truncate">${escapeHtml(title)}</span>
+      ${lead.needs_followup ? '<span class="flex-shrink-0 text-[10px] font-semibold bg-orange-100 text-orange-700 rounded-full px-2 py-0.5">Needs Follow-Up</span>' : ''}
+    </div>
+    <div class="text-xs text-slate-400 mt-0.5">${escapeHtml(lead.city || '')}</div>
+    <div class="text-xs text-slate-500 mt-1 truncate">${escapeHtml(snippet)}</div>
+  `;
+  return card;
+}
+
+async function onDrop(e, newStatus) {
+  e.preventDefault();
+  const leadId = e.dataTransfer.getData('text/plain');
+  const lead = leads.find(l => l.id === leadId);
+  if (!lead || lead.status === newStatus) return;
+  lead.status = newStatus;
+  renderBoard();
+  try {
+    await fetch(`/leads/${leadId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: newStatus })
+    });
+  } catch (err) {
+    console.error('Failed to update status', err);
+  }
+}
+
+async function openPanel(leadId) {
+  currentLeadId = leadId;
+  const lead = leads.find(l => l.id === leadId);
+  if (!lead) return;
+
+  document.getElementById('panelName').value = lead.name || '';
+  document.getElementById('panelCity').value = lead.city || '';
+  document.getElementById('panelPhone').textContent = lead.phone;
+  document.getElementById('clearFollowUpBtn').classList.toggle('hidden', !lead.needs_followup);
+
+  document.getElementById('panel').classList.remove('hidden');
+  document.getElementById('panelOverlay').classList.remove('hidden');
+
+  await loadThread();
+  if (threadPollTimer) clearInterval(threadPollTimer);
+  threadPollTimer = setInterval(loadThread, 10000);
+}
+
+function closePanel() {
+  document.getElementById('panel').classList.add('hidden');
+  document.getElementById('panelOverlay').classList.add('hidden');
+  if (threadPollTimer) { clearInterval(threadPollTimer); threadPollTimer = null; }
+  currentLeadId = null;
+}
+
+async function loadThread() {
+  if (!currentLeadId) return;
+  try {
+    const res = await fetch(`/api/leads/${currentLeadId}/messages`);
+    const messages = await res.json();
+    renderThread(messages);
+  } catch (err) {
+    console.error('Failed to load thread', err);
+  }
+}
+
+function renderThread(messages) {
+  const thread = document.getElementById('thread');
+  thread.innerHTML = messages.map(m => `
+    <div class="flex ${m.role === 'assistant' ? 'justify-end' : 'justify-start'}">
+      <div class="max-w-[80%] rounded-lg px-3 py-2 text-sm ${m.role === 'assistant' ? 'bg-slate-900 text-white' : 'bg-white border border-slate-200'}">
+        ${escapeHtml(m.body)}
+      </div>
+    </div>
+  `).join('');
+  thread.scrollTop = thread.scrollHeight;
+}
+
+async function sendMessage() {
+  const input = document.getElementById('messageInput');
+  const message = input.value.trim();
+  if (!message || !currentLeadId) return;
+  input.value = '';
+
+  const thread = document.getElementById('thread');
+  thread.insertAdjacentHTML('beforeend', `
+    <div class="flex justify-end">
+      <div class="max-w-[80%] rounded-lg px-3 py-2 text-sm bg-slate-900 text-white">${escapeHtml(message)}</div>
+    </div>
+  `);
+  thread.scrollTop = thread.scrollHeight;
+
+  try {
+    await fetch('/admin/send-sms', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ lead_id: currentLeadId, message })
+    });
+    await loadThread();
+  } catch (err) {
+    console.error('Failed to send message', err);
+  }
+}
+
+async function clearFollowUp() {
+  if (!currentLeadId) return;
+  try {
+    await fetch(`/leads/${currentLeadId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ needs_followup: false })
+    });
+    document.getElementById('clearFollowUpBtn').classList.add('hidden');
+    const lead = leads.find(l => l.id === currentLeadId);
+    if (lead) lead.needs_followup = false;
+    renderBoard();
+  } catch (err) {
+    console.error('Failed to clear follow-up flag', err);
+  }
+}
+
+async function patchField(field, value) {
+  if (!currentLeadId) return;
+  try {
+    await fetch(`/leads/${currentLeadId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ [field]: value })
+    });
+    const lead = leads.find(l => l.id === currentLeadId);
+    if (lead) lead[field] = value;
+    renderBoard();
+  } catch (err) {
+    console.error(`Failed to update ${field}`, err);
+  }
+}
+
+document.getElementById('panelName').addEventListener('blur', (e) => patchField('name', e.target.value));
+document.getElementById('panelCity').addEventListener('blur', (e) => patchField('city', e.target.value));
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str == null ? '' : String(str);
+  return div.innerHTML;
+}
+
+fetchLeads();
+setInterval(fetchLeads, 15000);
+</script>
+
+</body>
+</html>
