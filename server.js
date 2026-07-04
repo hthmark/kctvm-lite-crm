@@ -6,6 +6,7 @@ const path = require('path');
 const express = require('express');
 
 const smsRoutes = require('./routes/sms');
+const missedCallRoutes = require('./routes/missed-call');
 const adminRoutes = require('./routes/admin');
 const leadsRoutes = require('./routes/leads');
 const { startFollowUpPoller } = require('./lib/poller');
@@ -17,6 +18,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
 
 app.use(smsRoutes);
+app.use(missedCallRoutes);
 app.use(adminRoutes);
 app.use(leadsRoutes);
 

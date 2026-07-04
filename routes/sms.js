@@ -2,10 +2,10 @@
 
 const express = require('express');
 const router = express.Router();
-const supabase = require('../lib/supabase');
 const anthropic = require('../lib/anthropic');
 const { sendSMS } = require('../lib/telnyx');
 const { normalizePhone } = require('../lib/phone');
+const { findLeadByPhone, createLead, markLeadContacted, logMessage } = require('../lib/leads');
 const { CONCIERGE_SYSTEM_PROMPT } = require('../concierge-prompt');
 
 const FALLBACK_REPLY = "Hey! Thanks for reaching out to Kansas City TV Mounting — Gabe will get right back to you with details!";
@@ -64,9 +64,7 @@ router.post('/webhook/sms-inbound', async (req, res) => {
 
     let lead = null;
     try {
-      const { data, error } = await supabase.from('leads').select('*').eq('phone', phone).limit(1);
-      if (error) throw error;
-      lead = data?.[0] ?? null;
+      lead = await findLeadByPhone(phone);
     } catch (err) {
       console.error('[Webhook] Lead lookup error:', err.message);
       return;
@@ -74,14 +72,7 @@ router.post('/webhook/sms-inbound', async (req, res) => {
 
     if (!lead) {
       try {
-        const { data, error } = await supabase.from('leads').insert({
-          phone,
-          status: 'Lead',
-          last_inbound_at: new Date().toISOString(),
-          needs_followup: false
-        }).select().limit(1);
-        if (error) throw error;
-        lead = data?.[0] ?? null;
+        lead = await createLead(phone);
       } catch (err) {
         console.error('[Webhook] Lead insert error:', err.message);
         return;
@@ -89,7 +80,7 @@ router.post('/webhook/sms-inbound', async (req, res) => {
       if (!lead) return;
 
       try {
-        await supabase.from('messages').insert({ lead_id: lead.id, role: 'user', body: text });
+        await logMessage(lead.id, 'user', text);
       } catch (err) {
         console.error('[Webhook] Inbound message insert error:', err.message);
       }
@@ -103,22 +94,19 @@ router.post('/webhook/sms-inbound', async (req, res) => {
       }
 
       try {
-        await supabase.from('messages').insert({ lead_id: lead.id, role: 'assistant', body: reply });
+        await logMessage(lead.id, 'assistant', reply);
       } catch (err) {
         console.error('[Webhook] Assistant message insert error:', err.message);
       }
     } else {
       try {
-        await supabase.from('leads').update({
-          last_inbound_at: new Date().toISOString(),
-          needs_followup: false
-        }).eq('id', lead.id);
+        await markLeadContacted(lead.id);
       } catch (err) {
         console.error('[Webhook] Lead update error:', err.message);
       }
 
       try {
-        await supabase.from('messages').insert({ lead_id: lead.id, role: 'user', body: text });
+        await logMessage(lead.id, 'user', text);
       } catch (err) {
         console.error('[Webhook] Inbound message insert error:', err.message);
       }
