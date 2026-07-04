@@ -22,16 +22,19 @@ function parseInbound(req) {
 async function generateReply(inboundText, attempt = 1) {
   try {
     const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-6',
+      model: 'claude-sonnet-4-5',
       max_tokens: 300,
       system: CONCIERGE_SYSTEM_PROMPT,
       messages: [{ role: 'user', content: inboundText }]
     });
+    console.log('[Webhook] Anthropic raw response:', JSON.stringify(response));
     const textBlock = (response.content || []).find(b => b.type === 'text');
     const reply = textBlock ? textBlock.text.trim() : '';
     return reply || FALLBACK_REPLY;
   } catch (err) {
-    console.error(`[Webhook] Anthropic error (attempt ${attempt}):`, err.message);
+    console.error(`[Webhook] Anthropic error (attempt ${attempt}):`, JSON.stringify(err, Object.getOwnPropertyNames(err)));
+    console.error(`[Webhook] Anthropic error.status (attempt ${attempt}):`, err.status);
+    console.error(`[Webhook] Anthropic error.error (attempt ${attempt}):`, JSON.stringify(err.error));
     if (attempt < 2) return generateReply(inboundText, attempt + 1);
     return FALLBACK_REPLY;
   }
