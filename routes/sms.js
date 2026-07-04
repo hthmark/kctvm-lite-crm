@@ -19,7 +19,7 @@ function parseInbound(req) {
   };
 }
 
-async function generateReply(inboundText) {
+async function generateReply(inboundText, attempt = 1) {
   try {
     const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-6',
@@ -31,7 +31,8 @@ async function generateReply(inboundText) {
     const reply = textBlock ? textBlock.text.trim() : '';
     return reply || FALLBACK_REPLY;
   } catch (err) {
-    console.error('[Webhook] Anthropic error:', err.message);
+    console.error(`[Webhook] Anthropic error (attempt ${attempt}):`, err.message);
+    if (attempt < 2) return generateReply(inboundText, attempt + 1);
     return FALLBACK_REPLY;
   }
 }
