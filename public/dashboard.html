@@ -86,6 +86,12 @@
     <button onclick="closePanel()" class="text-slate-400 hover:text-slate-700 text-xl leading-none px-2">&times;</button>
   </div>
 
+  <div class="px-4 py-2 border-b border-slate-100">
+    <label class="text-xs font-medium text-slate-500 mb-1 block">Status</label>
+    <select id="panelStatus" onchange="updateStatus(this.value)" class="w-full border border-slate-300 rounded px-2 py-1 text-sm"></select>
+    <div id="panelStatusError" class="hidden mt-1 text-xs text-red-600"></div>
+  </div>
+
   <div class="px-4 py-2 border-b border-slate-100 flex items-center justify-between">
     <span id="panelPhone" class="text-xs text-slate-400"></span>
     <button id="clearFollowUpBtn" onclick="clearFollowUp()" class="hidden text-xs px-2 py-1 rounded bg-orange-100 text-orange-700 hover:bg-orange-200">Clear Follow-Up Flag</button>
@@ -189,6 +195,8 @@ async function openPanel(leadId) {
   document.getElementById('panelCity').value = lead.city || '';
   document.getElementById('panelPhone').textContent = lead.phone;
   document.getElementById('clearFollowUpBtn').classList.toggle('hidden', !lead.needs_followup);
+  document.getElementById('panelStatus').value = lead.status;
+  document.getElementById('panelStatusError').classList.add('hidden');
 
   document.getElementById('panel').classList.remove('hidden');
   document.getElementById('panelOverlay').classList.remove('hidden');
@@ -289,6 +297,39 @@ async function patchField(field, value) {
 
 document.getElementById('panelName').addEventListener('blur', (e) => patchField('name', e.target.value));
 document.getElementById('panelCity').addEventListener('blur', (e) => patchField('city', e.target.value));
+
+document.getElementById('panelStatus').innerHTML = COLUMNS.map(col => `<option value="${col}">${col}</option>`).join('');
+
+async function updateStatus(newStatus) {
+  if (!currentLeadId) return;
+  const lead = leads.find(l => l.id === currentLeadId);
+  if (!lead) return;
+
+  const errorEl = document.getElementById('panelStatusError');
+  errorEl.classList.add('hidden');
+
+  const previousStatus = lead.status;
+  if (previousStatus === newStatus) return;
+
+  lead.status = newStatus;
+  renderBoard();
+
+  try {
+    const res = await fetch(`/leads/${currentLeadId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: newStatus })
+    });
+    if (!res.ok) throw new Error('Request failed with status ' + res.status);
+  } catch (err) {
+    console.error('Failed to update status', err);
+    lead.status = previousStatus;
+    document.getElementById('panelStatus').value = previousStatus;
+    renderBoard();
+    errorEl.textContent = "Couldn't update status — please try again.";
+    errorEl.classList.remove('hidden');
+  }
+}
 
 function escapeHtml(str) {
   const div = document.createElement('div');
