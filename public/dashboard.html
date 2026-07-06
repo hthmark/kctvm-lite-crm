@@ -234,22 +234,26 @@ function renderQuoteDetails(lead) {
     return;
   }
 
+  const MOUNT_LABELS = { yes: 'Already has a mount', fixed: 'Fixed Mount', articulating: 'Articulating Mount' };
+  const WALL_LABELS = { drywall: 'Drywall', brick: 'Brick' };
+  const WIRE_LABELS = { no: 'No', cable: 'Yes — Cable Routing' };
+
   const lines = [];
-  if (details.preferred_time) lines.push(`Preferred time: ${escapeHtml(String(details.preferred_time))}`);
+  if (lead.city) lines.push(`<div>City: ${escapeHtml(String(lead.city))}</div>`);
+  if (details.preferred_time) lines.push(`<div>Preferred time: ${escapeHtml(String(details.preferred_time))}</div>`);
   if (details.total_price !== undefined && details.total_price !== null && details.total_price !== '') {
-    lines.push(`Total price: $${escapeHtml(String(details.total_price))}`);
+    lines.push(`<div>Total price: $${escapeHtml(String(details.total_price))}</div>`);
   }
 
   (details.tvs || []).forEach((tv, i) => {
-    const parts = [];
-    if (tv.size) parts.push(escapeHtml(capitalize(tv.size)));
-    if (tv.mount) parts.push(`${escapeHtml(capitalize(tv.mount))} Mount`);
-    if (tv.wall && String(tv.wall).toLowerCase() !== 'drywall') parts.push(`${escapeHtml(capitalize(tv.wall))} wall`);
-    if (tv.wire && String(tv.wire).toLowerCase() !== 'no') parts.push('Cable routing');
-    lines.push(`TV ${i + 1}: ${parts.join(', ')}`);
+    lines.push(`<div class="mt-2 font-medium">TV ${i + 1}</div>`);
+    if (tv.size) lines.push(`<div class="pl-2">Size: ${escapeHtml(capitalize(tv.size))}</div>`);
+    if (tv.mount) lines.push(`<div class="pl-2">Mount: ${escapeHtml(MOUNT_LABELS[tv.mount] || capitalize(tv.mount))}</div>`);
+    if (tv.wall) lines.push(`<div class="pl-2">Wall: ${escapeHtml(WALL_LABELS[tv.wall] || capitalize(tv.wall))}</div>`);
+    if (tv.wire) lines.push(`<div class="pl-2">Wires concealed: ${escapeHtml(WIRE_LABELS[tv.wire] || capitalize(tv.wire))}</div>`);
   });
 
-  body.innerHTML = lines.map(line => `<div>${line}</div>`).join('');
+  body.innerHTML = lines.join('');
   section.classList.remove('hidden');
 }
 
