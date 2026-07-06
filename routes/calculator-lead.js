@@ -1,10 +1,26 @@
 'use strict';
 
 const express = require('express');
+const cors = require('cors');
 const router = express.Router();
 const supabase = require('../lib/supabase');
 const { normalizePhone } = require('../lib/phone');
 const { findLeadByPhone, createLead } = require('../lib/leads');
+
+// Scoped to this route only — the calculator is embedded via Framer, so
+// requests arrive from the live site and from Framer's preview subdomains.
+const calculatorCors = cors({
+  origin(origin, callback) {
+    const allowed = !origin
+      || origin === 'https://kansascitytvmounting.com'
+      || /\.framer\.(app|website)$/.test(origin);
+    callback(null, allowed);
+  },
+  methods: ['POST', 'OPTIONS'],
+  allowedHeaders: ['Content-Type']
+});
+
+router.use('/webhook/calculator-lead', calculatorCors);
 
 router.post('/webhook/calculator-lead', async (req, res) => {
   try {
