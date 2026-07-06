@@ -27,7 +27,7 @@ router.post('/webhook/missed-call', async (req, res) => {
 
     if (!lead) {
       try {
-        lead = await createLead(phone);
+        lead = await createLead(phone, { source: 'Missed Call' });
       } catch (err) {
         console.error('[MissedCall] Lead insert error:', err.message);
         return;

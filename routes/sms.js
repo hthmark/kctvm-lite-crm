@@ -73,7 +73,7 @@ router.post('/webhook/sms-inbound', async (req, res) => {
 
     if (!lead) {
       try {
-        lead = await createLead(phone);
+        lead = await createLead(phone, { source: 'Text from Website' });
       } catch (err) {
         console.error('[Webhook] Lead insert error:', err.message);
         return;

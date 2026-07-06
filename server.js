@@ -10,6 +10,7 @@ const missedCallRoutes = require('./routes/missed-call');
 const adminRoutes = require('./routes/admin');
 const leadsRoutes = require('./routes/leads');
 const paymentLinkRoutes = require('./routes/payment-link');
+const calculatorLeadRoutes = require('./routes/calculator-lead');
 const { startFollowUpPoller } = require('./lib/poller');
 
 const app = express();
@@ -23,6 +24,7 @@ app.use(missedCallRoutes);
 app.use(adminRoutes);
 app.use(leadsRoutes);
 app.use(paymentLinkRoutes);
+app.use(calculatorLeadRoutes);
 
 const PORT = process.env.PORT || 3000;
 
