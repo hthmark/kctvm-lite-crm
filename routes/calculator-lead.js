@@ -23,20 +23,43 @@ const calculatorCors = cors({
 
 router.use('/webhook/calculator-lead', calculatorCors);
 
+function buildQuoteDetails(body) {
+  const numTvs = Math.min(Number(body.num_tvs) || 0, 10);
+  const tvs = [];
+  for (let i = 1; i <= numTvs; i++) {
+    const size = body[`tv_${i}_size`];
+    if (!size) continue;
+    tvs.push({
+      size,
+      inches: body[`tv_${i}_inches`],
+      mount: body[`tv_${i}_mount`],
+      wall: body[`tv_${i}_wall`],
+      wire: body[`tv_${i}_wire`]
+    });
+  }
+  return {
+    preferred_time: body.preferred_time,
+    num_tvs: body.num_tvs,
+    total_price: body.total_price,
+    tvs
+  };
+}
+
 router.post('/webhook/calculator-lead', async (req, res) => {
   try {
     const { name, phone: rawPhone, city } = req.body || {};
     if (!rawPhone) return res.status(400).json({ error: 'phone is required' });
     const phone = normalizePhone(rawPhone);
+    const quoteDetails = buildQuoteDetails(req.body || {});
 
     let lead = await findLeadByPhone(phone);
 
     if (!lead) {
-      lead = await createLead(phone, { name, city, source: 'Quote Calculator' });
+      lead = await createLead(phone, { name, city, source: 'Quote Calculator', quote_details: quoteDetails });
     } else {
       const { data, error } = await supabase
         .from('leads')
-        .update({ name, city, updated_at: new Date().toISOString() })
+        .update({ name, city, quote_details: quoteDetails, updated_at: new Date().toISOString() })
         .eq('id', lead.id)
         .select()
         .limit(1);

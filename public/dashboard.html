@@ -97,6 +97,11 @@
     <button id="clearFollowUpBtn" onclick="clearFollowUp()" class="hidden text-xs px-2 py-1 rounded bg-orange-100 text-orange-700 hover:bg-orange-200">Clear Follow-Up Flag</button>
   </div>
 
+  <div id="quoteDetailsSection" class="hidden px-4 py-2 border-b border-slate-100 text-sm">
+    <div class="font-medium text-xs text-slate-500 mb-1">Quote Details</div>
+    <div id="quoteDetailsBody" class="space-y-1 text-slate-700"></div>
+  </div>
+
   <div id="thread" class="flex-1 overflow-y-auto px-4 py-3 space-y-2 bg-slate-50"></div>
 
   <div class="border-t border-slate-200 p-3 flex gap-2">
@@ -203,6 +208,7 @@ async function openPanel(leadId) {
   document.getElementById('clearFollowUpBtn').classList.toggle('hidden', !lead.needs_followup);
   document.getElementById('panelStatus').value = lead.status;
   document.getElementById('panelStatusError').classList.add('hidden');
+  renderQuoteDetails(lead);
 
   document.getElementById('panel').classList.remove('hidden');
   document.getElementById('panelOverlay').classList.remove('hidden');
@@ -210,6 +216,41 @@ async function openPanel(leadId) {
   await loadThread();
   if (threadPollTimer) clearInterval(threadPollTimer);
   threadPollTimer = setInterval(loadThread, 10000);
+}
+
+function capitalize(str) {
+  const s = String(str);
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+function renderQuoteDetails(lead) {
+  const section = document.getElementById('quoteDetailsSection');
+  const body = document.getElementById('quoteDetailsBody');
+  const details = lead.quote_details;
+
+  if (!details) {
+    section.classList.add('hidden');
+    body.innerHTML = '';
+    return;
+  }
+
+  const lines = [];
+  if (details.preferred_time) lines.push(`Preferred time: ${escapeHtml(String(details.preferred_time))}`);
+  if (details.total_price !== undefined && details.total_price !== null && details.total_price !== '') {
+    lines.push(`Total price: $${escapeHtml(String(details.total_price))}`);
+  }
+
+  (details.tvs || []).forEach((tv, i) => {
+    const parts = [];
+    if (tv.size) parts.push(escapeHtml(capitalize(tv.size)));
+    if (tv.mount) parts.push(`${escapeHtml(capitalize(tv.mount))} Mount`);
+    if (tv.wall && String(tv.wall).toLowerCase() !== 'drywall') parts.push(`${escapeHtml(capitalize(tv.wall))} wall`);
+    if (tv.wire && String(tv.wire).toLowerCase() !== 'no') parts.push('Cable routing');
+    lines.push(`TV ${i + 1}: ${parts.join(', ')}`);
+  });
+
+  body.innerHTML = lines.map(line => `<div>${line}</div>`).join('');
+  section.classList.remove('hidden');
 }
 
 function closePanel() {
