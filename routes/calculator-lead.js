@@ -12,6 +12,7 @@ const { findLeadByPhone, createLead } = require('../lib/leads');
 const calculatorCors = cors({
   origin(origin, callback) {
     const allowed = !origin
+      || origin === 'null'
       || origin === 'https://kansascitytvmounting.com'
       || /\.framer\.(app|website)$/.test(origin);
     callback(null, allowed);
