@@ -7,6 +7,7 @@ const supabase = require('../lib/supabase');
 const { normalizePhone } = require('../lib/phone');
 const { findLeadByPhone, createLead, logMessage } = require('../lib/leads');
 const { sendSMS } = require('../lib/telnyx');
+const { alertOwner } = require('../lib/owner-alert');
 
 // Scoped to this route only — the calculator is embedded via Framer, so
 // requests arrive from the live site and from Framer's preview subdomains.
@@ -78,6 +79,8 @@ router.post('/webhook/calculator-lead', async (req, res) => {
 
     if (!lead) {
       lead = await createLead(phone, { name, city, source: 'Quote Calculator', quote_details: quoteDetails });
+
+      await alertOwner(`New lead (quote calculator): ${name || phone}, ${city || 'no city'} — $${quoteDetails.total_price || '?'}`);
 
       if (!lead.quote_text_sent) {
         try {

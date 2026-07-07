@@ -13,6 +13,8 @@ const paymentLinkRoutes = require('./routes/payment-link');
 const calculatorLeadRoutes = require('./routes/calculator-lead');
 const { startFollowUpPoller } = require('./lib/poller');
 
+console.log('[OwnerAlert] OWNER_ALERT_PHONE present:', !!process.env.OWNER_ALERT_PHONE);
+
 const app = express();
 
 app.use(express.json());
