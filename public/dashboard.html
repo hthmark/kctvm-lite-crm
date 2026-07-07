@@ -10,9 +10,11 @@
 
 <header class="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between">
   <h1 class="text-lg font-semibold">Kansas City TV Mounting</h1>
-  <nav class="flex gap-2">
+  <nav class="flex items-center gap-2">
     <button id="tabBoardBtn" onclick="showTab('board')" class="text-sm font-medium px-3 py-1.5 rounded-md bg-slate-900 text-white">Job Board</button>
     <button id="tabResourcesBtn" onclick="showTab('resources')" class="text-sm font-medium px-3 py-1.5 rounded-md text-slate-600 hover:bg-slate-100">Resources</button>
+    <div class="w-px h-5 bg-slate-200 mx-1"></div>
+    <button id="addJobBtn" onclick="openAddJobModal()" class="text-sm font-medium px-3 py-1.5 rounded-md text-slate-600 hover:bg-slate-100">+ Add Job</button>
   </nav>
 </header>
 
@@ -107,6 +109,55 @@
   <div class="border-t border-slate-200 p-3 flex gap-2">
     <input id="messageInput" type="text" placeholder="Type a message..." class="flex-1 border border-slate-300 rounded px-3 py-2 text-sm outline-none focus:border-slate-500" onkeydown="if(event.key==='Enter') sendMessage()">
     <button onclick="sendMessage()" class="bg-slate-900 text-white text-sm px-4 py-2 rounded hover:bg-slate-700">Send</button>
+  </div>
+</div>
+
+<!-- Add Job modal -->
+<div id="addJobOverlay" class="hidden fixed inset-0 bg-black/30 z-40" onclick="closeAddJobModal()"></div>
+<div id="addJobModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4">
+  <div class="bg-white rounded-lg shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+    <div class="flex items-center justify-between px-4 py-3 border-b border-slate-200">
+      <h2 class="font-semibold text-base">Add Job</h2>
+      <button onclick="closeAddJobModal()" class="text-slate-400 hover:text-slate-700 text-xl leading-none px-2">&times;</button>
+    </div>
+
+    <div class="p-4 space-y-3">
+      <div>
+        <label class="text-xs font-medium text-slate-500 mb-1 block">Name</label>
+        <input id="addJobName" type="text" class="w-full border border-slate-300 rounded px-2 py-1.5 text-sm">
+      </div>
+      <div>
+        <label class="text-xs font-medium text-slate-500 mb-1 block">Phone</label>
+        <input id="addJobPhone" type="text" class="w-full border border-slate-300 rounded px-2 py-1.5 text-sm">
+      </div>
+      <div>
+        <label class="text-xs font-medium text-slate-500 mb-1 block">City</label>
+        <input id="addJobCity" type="text" class="w-full border border-slate-300 rounded px-2 py-1.5 text-sm">
+      </div>
+      <div>
+        <label class="text-xs font-medium text-slate-500 mb-1 block">Preferred time</label>
+        <input id="addJobPreferredTime" type="text" placeholder="Tomorrow morning" class="w-full border border-slate-300 rounded px-2 py-1.5 text-sm">
+      </div>
+      <div>
+        <label class="text-xs font-medium text-slate-500 mb-1 block">Total price</label>
+        <input id="addJobTotalPrice" type="number" placeholder="e.g. 149" class="w-full border border-slate-300 rounded px-2 py-1.5 text-sm">
+      </div>
+
+      <div>
+        <div class="flex items-center justify-between mb-1">
+          <label class="text-xs font-medium text-slate-500">TVs</label>
+          <button type="button" onclick="addTvRow()" class="text-xs px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700">+ Add TV</button>
+        </div>
+        <div id="addJobTvRows" class="space-y-2"></div>
+      </div>
+
+      <div id="addJobError" class="hidden text-xs text-red-600"></div>
+    </div>
+
+    <div class="border-t border-slate-200 p-3 flex justify-end gap-2">
+      <button onclick="closeAddJobModal()" class="text-sm px-3 py-1.5 rounded text-slate-600 hover:bg-slate-100">Cancel</button>
+      <button id="addJobSubmitBtn" onclick="submitAddJob()" disabled class="bg-slate-900 text-white text-sm font-medium px-3 py-1.5 rounded hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed">Add Job</button>
+    </div>
   </div>
 </div>
 
@@ -262,6 +313,118 @@ function closePanel() {
   document.getElementById('panelOverlay').classList.add('hidden');
   if (threadPollTimer) { clearInterval(threadPollTimer); threadPollTimer = null; }
   currentLeadId = null;
+}
+
+// ── ADD JOB MODAL ──────────────────────────────────────────────────────────
+
+function tvRowHtml() {
+  return `
+    <div class="flex items-center gap-1 flex-wrap border border-slate-200 rounded p-2" data-tv-row>
+      <select class="tv-size border border-slate-300 rounded px-1.5 py-1 text-xs flex-1 min-w-[110px]">
+        <option value="small">Smaller than 65"</option>
+        <option value="large">65" or larger</option>
+      </select>
+      <select class="tv-mount border border-slate-300 rounded px-1.5 py-1 text-xs flex-1 min-w-[140px]">
+        <option value="yes">Yes, already have one</option>
+        <option value="fixed">Fixed Mount</option>
+        <option value="articulating">Articulating Mount</option>
+      </select>
+      <select class="tv-wall border border-slate-300 rounded px-1.5 py-1 text-xs flex-1 min-w-[90px]">
+        <option value="drywall">Drywall</option>
+        <option value="brick">Brick</option>
+      </select>
+      <select class="tv-wire border border-slate-300 rounded px-1.5 py-1 text-xs flex-1 min-w-[150px]">
+        <option value="no">No</option>
+        <option value="cable">Yes - Cable Routing</option>
+      </select>
+      <button type="button" onclick="removeTvRow(this)" class="text-slate-400 hover:text-red-600 text-sm px-1 leading-none">&times;</button>
+    </div>
+  `;
+}
+
+function addTvRow() {
+  document.getElementById('addJobTvRows').insertAdjacentHTML('beforeend', tvRowHtml());
+}
+
+function removeTvRow(btn) {
+  const row = btn.closest('[data-tv-row]');
+  if (row) row.remove();
+}
+
+function updateAddJobSubmitState() {
+  const phone = document.getElementById('addJobPhone').value.trim();
+  document.getElementById('addJobSubmitBtn').disabled = !phone;
+}
+
+function openAddJobModal() {
+  document.getElementById('addJobName').value = '';
+  document.getElementById('addJobPhone').value = '';
+  document.getElementById('addJobCity').value = '';
+  document.getElementById('addJobPreferredTime').value = '';
+  document.getElementById('addJobTotalPrice').value = '';
+  document.getElementById('addJobTvRows').innerHTML = '';
+  addTvRow();
+  document.getElementById('addJobError').classList.add('hidden');
+  updateAddJobSubmitState();
+
+  document.getElementById('addJobModal').classList.remove('hidden');
+  document.getElementById('addJobOverlay').classList.remove('hidden');
+}
+
+function closeAddJobModal() {
+  document.getElementById('addJobModal').classList.add('hidden');
+  document.getElementById('addJobOverlay').classList.add('hidden');
+}
+
+document.getElementById('addJobPhone').addEventListener('input', updateAddJobSubmitState);
+
+async function submitAddJob() {
+  const errorEl = document.getElementById('addJobError');
+  errorEl.classList.add('hidden');
+
+  const phone = document.getElementById('addJobPhone').value.trim();
+  if (!phone) {
+    errorEl.textContent = 'Phone is required.';
+    errorEl.classList.remove('hidden');
+    return;
+  }
+
+  const name = document.getElementById('addJobName').value.trim();
+  const city = document.getElementById('addJobCity').value.trim();
+  const preferred_time = document.getElementById('addJobPreferredTime').value.trim();
+  const totalPriceRaw = document.getElementById('addJobTotalPrice').value;
+  const total_price = totalPriceRaw !== '' ? Number(totalPriceRaw) : '';
+
+  const tvs = Array.from(document.querySelectorAll('#addJobTvRows [data-tv-row]')).map(row => ({
+    size: row.querySelector('.tv-size').value,
+    mount: row.querySelector('.tv-mount').value,
+    wall: row.querySelector('.tv-wall').value,
+    wire: row.querySelector('.tv-wire').value
+  }));
+
+  const submitBtn = document.getElementById('addJobSubmitBtn');
+  submitBtn.disabled = true;
+
+  try {
+    const res = await fetch('/api/leads/manual', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, phone, city, preferred_time, total_price, tvs })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to add job');
+
+    closeAddJobModal();
+    leads = leads.filter(l => l.id !== data.id);
+    leads.unshift(data);
+    renderBoard();
+  } catch (err) {
+    console.error('Failed to add job', err);
+    errorEl.textContent = err.message || "Couldn't add job — please try again.";
+    errorEl.classList.remove('hidden');
+  } finally {
+    updateAddJobSubmitState();
+  }
 }
 
 async function loadThread() {
