@@ -5,7 +5,8 @@ const cors = require('cors');
 const router = express.Router();
 const supabase = require('../lib/supabase');
 const { normalizePhone } = require('../lib/phone');
-const { findLeadByPhone, createLead } = require('../lib/leads');
+const { findLeadByPhone, createLead, logMessage } = require('../lib/leads');
+const { sendSMS } = require('../lib/telnyx');
 
 // Scoped to this route only — the calculator is embedded via Framer, so
 // requests arrive from the live site and from Framer's preview subdomains.
@@ -45,6 +46,27 @@ function buildQuoteDetails(body) {
   };
 }
 
+function describeJob(tvs) {
+  const MOUNT_PHRASES = { yes: 'using your existing mount', fixed: 'a fixed mount', articulating: 'an articulating mount' };
+  const WIRE_PHRASES = { no: 'no wire concealment', cable: 'wire concealment' };
+
+  return tvs.map(tv => {
+    const sizeLabel = tv.inches ? `${tv.inches}"` : (tv.size === 'small' ? 'under 65"' : '65"+');
+    const mountPhrase = MOUNT_PHRASES[tv.mount] || 'a mount';
+    const wallPhrase = tv.wall || 'drywall';
+    const wirePhrase = WIRE_PHRASES[tv.wire] || 'no wire concealment';
+    return `a ${sizeLabel} TV installation with ${mountPhrase}, in ${wallPhrase}, ${wirePhrase}`;
+  }).join('; and ');
+}
+
+function buildConfirmationText(name, quoteDetails) {
+  const firstName = (name || '').trim().split(/\s+/)[0] || 'there';
+  const jobDescription = describeJob(quoteDetails.tvs || []);
+  const price = quoteDetails.total_price;
+  const time = quoteDetails.preferred_time || 'your preferred time';
+  return `Hey ${firstName}, it's Gabe from Kansas City TV Mounting. Just saw you submitted a quote online for ${jobDescription}. If $${price} works for you we can get you scheduled for ${time}?`;
+}
+
 router.post('/webhook/calculator-lead', async (req, res) => {
   try {
     const { name, phone: rawPhone, city } = req.body || {};
@@ -56,6 +78,18 @@ router.post('/webhook/calculator-lead', async (req, res) => {
 
     if (!lead) {
       lead = await createLead(phone, { name, city, source: 'Quote Calculator', quote_details: quoteDetails });
+
+      if (!lead.quote_text_sent) {
+        try {
+          const confirmationText = buildConfirmationText(name, quoteDetails);
+          await sendSMS(phone, confirmationText);
+          await logMessage(lead.id, 'assistant', confirmationText);
+          await supabase.from('leads').update({ quote_text_sent: true }).eq('id', lead.id);
+        } catch (err) {
+          console.error('[CalculatorLead] confirmation SMS error:', err.message);
+          // Don't fail the whole request if the text fails — the lead is still saved.
+        }
+      }
     } else {
       const { data, error } = await supabase
         .from('leads')
