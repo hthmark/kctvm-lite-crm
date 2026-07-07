@@ -6,7 +6,7 @@ const supabase = require('../lib/supabase');
 const { normalizePhone } = require('../lib/phone');
 const { findLeadByPhone, createLead } = require('../lib/leads');
 
-const PATCHABLE_FIELDS = ['status', 'name', 'city', 'needs_followup'];
+const PATCHABLE_FIELDS = ['status', 'name', 'city', 'needs_followup', 'quote_details'];
 
 router.get('/api/leads', async (req, res) => {
   try {

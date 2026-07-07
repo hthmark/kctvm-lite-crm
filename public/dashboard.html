@@ -100,8 +100,35 @@
   </div>
 
   <div id="quoteDetailsSection" class="hidden px-4 py-2 border-b border-slate-100 text-sm">
-    <div class="font-medium text-xs text-slate-500 mb-1">Quote Details</div>
+    <div class="flex items-center justify-between mb-1">
+      <div class="font-medium text-xs text-slate-500">Quote Details</div>
+      <button id="quoteDetailsEditBtn" onclick="openQuoteDetailsEdit()" class="text-xs text-slate-400 hover:text-slate-700">Edit</button>
+    </div>
+
     <div id="quoteDetailsBody" class="space-y-1 text-slate-700"></div>
+
+    <div id="quoteDetailsEdit" class="hidden space-y-2 mt-1">
+      <div>
+        <label class="text-xs font-medium text-slate-500 mb-1 block">Preferred time</label>
+        <input id="quoteEditPreferredTime" type="text" placeholder="Tomorrow morning" class="w-full border border-slate-300 rounded px-2 py-1 text-xs">
+      </div>
+      <div>
+        <label class="text-xs font-medium text-slate-500 mb-1 block">Total price</label>
+        <input id="quoteEditTotalPrice" type="number" placeholder="e.g. 149" class="w-full border border-slate-300 rounded px-2 py-1 text-xs">
+      </div>
+      <div>
+        <div class="flex items-center justify-between mb-1">
+          <label class="text-xs font-medium text-slate-500">TVs</label>
+          <button type="button" onclick="addTvRow('quoteEditTvRows')" class="text-xs px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700">+ Add TV</button>
+        </div>
+        <div id="quoteEditTvRows" class="space-y-2"></div>
+      </div>
+      <div id="quoteDetailsEditError" class="hidden text-xs text-red-600"></div>
+      <div class="flex justify-end gap-2 pt-1">
+        <button type="button" onclick="closeQuoteDetailsEdit()" class="text-xs px-3 py-1.5 rounded text-slate-600 hover:bg-slate-100">Cancel</button>
+        <button type="button" id="quoteDetailsSaveBtn" onclick="saveQuoteDetails()" class="bg-slate-900 text-white text-xs font-medium px-3 py-1.5 rounded hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed">Save</button>
+      </div>
+    </div>
   </div>
 
   <div id="thread" class="flex-1 overflow-y-auto px-4 py-3 space-y-2 bg-slate-50"></div>
@@ -274,20 +301,31 @@ function capitalize(str) {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
+const MOUNT_LABELS = { yes: 'Already has a mount', fixed: 'Fixed Mount', articulating: 'Articulating Mount' };
+const WALL_LABELS = { drywall: 'Drywall', brick: 'Brick' };
+const WIRE_LABELS = { no: 'No', cable: 'Yes — Cable Routing' };
+
+function showQuoteDetailsDisplay() {
+  document.getElementById('quoteDetailsEdit').classList.add('hidden');
+  document.getElementById('quoteDetailsBody').classList.remove('hidden');
+  document.getElementById('quoteDetailsEditBtn').classList.remove('hidden');
+}
+
 function renderQuoteDetails(lead) {
-  const section = document.getElementById('quoteDetailsSection');
+  showQuoteDetailsDisplay();
+
+  // Always visible (not just when a quote exists) so Edit is reachable —
+  // that's how job details get added to SMS/missed-call leads that never
+  // came through the calculator.
+  document.getElementById('quoteDetailsSection').classList.remove('hidden');
+
   const body = document.getElementById('quoteDetailsBody');
   const details = lead.quote_details;
 
   if (!details) {
-    section.classList.add('hidden');
     body.innerHTML = '';
     return;
   }
-
-  const MOUNT_LABELS = { yes: 'Already has a mount', fixed: 'Fixed Mount', articulating: 'Articulating Mount' };
-  const WALL_LABELS = { drywall: 'Drywall', brick: 'Brick' };
-  const WIRE_LABELS = { no: 'No', cable: 'Yes — Cable Routing' };
 
   const lines = [];
   if (lead.city) lines.push(`<div>City: ${escapeHtml(String(lead.city))}</div>`);
@@ -305,7 +343,69 @@ function renderQuoteDetails(lead) {
   });
 
   body.innerHTML = lines.join('');
-  section.classList.remove('hidden');
+}
+
+function openQuoteDetailsEdit() {
+  const lead = leads.find(l => l.id === currentLeadId);
+  if (!lead) return;
+  const details = lead.quote_details || {};
+
+  document.getElementById('quoteEditPreferredTime').value = details.preferred_time || '';
+  document.getElementById('quoteEditTotalPrice').value = details.total_price ?? '';
+  populateTvRows('quoteEditTvRows', details.tvs || []);
+  document.getElementById('quoteDetailsEditError').classList.add('hidden');
+
+  document.getElementById('quoteDetailsBody').classList.add('hidden');
+  document.getElementById('quoteDetailsEditBtn').classList.add('hidden');
+  document.getElementById('quoteDetailsEdit').classList.remove('hidden');
+}
+
+function closeQuoteDetailsEdit() {
+  const lead = leads.find(l => l.id === currentLeadId);
+  if (lead) renderQuoteDetails(lead);
+}
+
+async function saveQuoteDetails() {
+  if (!currentLeadId) return;
+  const errorEl = document.getElementById('quoteDetailsEditError');
+  errorEl.classList.add('hidden');
+
+  const preferred_time = document.getElementById('quoteEditPreferredTime').value.trim();
+  const totalPriceRaw = document.getElementById('quoteEditTotalPrice').value;
+  const total_price = totalPriceRaw !== '' ? Number(totalPriceRaw) : null;
+  const tvs = collectTvRows('quoteEditTvRows').filter(tv => tv.size);
+
+  const quoteDetails = {
+    preferred_time: preferred_time || null,
+    total_price,
+    num_tvs: tvs.length,
+    tvs
+  };
+
+  const saveBtn = document.getElementById('quoteDetailsSaveBtn');
+  saveBtn.disabled = true;
+
+  try {
+    const res = await fetch(`/leads/${currentLeadId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ quote_details: quoteDetails })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to save quote details');
+
+    const lead = leads.find(l => l.id === currentLeadId);
+    if (lead) {
+      lead.quote_details = data.quote_details;
+      renderQuoteDetails(lead);
+    }
+  } catch (err) {
+    console.error('Failed to save quote details', err);
+    errorEl.textContent = err.message || "Couldn't save — please try again.";
+    errorEl.classList.remove('hidden');
+  } finally {
+    saveBtn.disabled = false;
+  }
 }
 
 function closePanel() {
@@ -342,13 +442,35 @@ function tvRowHtml() {
   `;
 }
 
-function addTvRow() {
-  document.getElementById('addJobTvRows').insertAdjacentHTML('beforeend', tvRowHtml());
+function addTvRow(containerId = 'addJobTvRows') {
+  document.getElementById(containerId).insertAdjacentHTML('beforeend', tvRowHtml());
 }
 
 function removeTvRow(btn) {
   const row = btn.closest('[data-tv-row]');
   if (row) row.remove();
+}
+
+function collectTvRows(containerId) {
+  return Array.from(document.querySelectorAll(`#${containerId} [data-tv-row]`)).map(row => ({
+    size: row.querySelector('.tv-size').value,
+    mount: row.querySelector('.tv-mount').value,
+    wall: row.querySelector('.tv-wall').value,
+    wire: row.querySelector('.tv-wire').value
+  }));
+}
+
+function populateTvRows(containerId, tvs) {
+  const container = document.getElementById(containerId);
+  container.innerHTML = '';
+  (tvs || []).forEach(tv => {
+    addTvRow(containerId);
+    const row = container.lastElementChild;
+    if (tv.size) row.querySelector('.tv-size').value = tv.size;
+    if (tv.mount) row.querySelector('.tv-mount').value = tv.mount;
+    if (tv.wall) row.querySelector('.tv-wall').value = tv.wall;
+    if (tv.wire) row.querySelector('.tv-wire').value = tv.wire;
+  });
 }
 
 function updateAddJobSubmitState() {
@@ -395,12 +517,7 @@ async function submitAddJob() {
   const totalPriceRaw = document.getElementById('addJobTotalPrice').value;
   const total_price = totalPriceRaw !== '' ? Number(totalPriceRaw) : '';
 
-  const tvs = Array.from(document.querySelectorAll('#addJobTvRows [data-tv-row]')).map(row => ({
-    size: row.querySelector('.tv-size').value,
-    mount: row.querySelector('.tv-mount').value,
-    wall: row.querySelector('.tv-wall').value,
-    wire: row.querySelector('.tv-wire').value
-  }));
+  const tvs = collectTvRows('addJobTvRows');
 
   const submitBtn = document.getElementById('addJobSubmitBtn');
   submitBtn.disabled = true;
