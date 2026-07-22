@@ -15,13 +15,12 @@ function sizeLabel(rawSize) {
   return null;
 }
 
-function buildOpenerText(name, tvSize, hasMount, city) {
+function buildOpenerText(name, tvSize, hasMount) {
   const firstName = (name || '').trim().split(/\s+/)[0] || 'there';
   const size = sizeLabel(tvSize);
   const mountNote = (String(hasMount || '').toLowerCase() === 'no') ? ', and we can get you set up with a mount too' : '';
   const jobPhrase = size ? `${size}${mountNote}` : 'a TV mounted';
-  const cityPhrase = city ? ` in ${city}` : '';
-  return `Hey ${firstName}, it's Gabe from Kansas City TV Mounting! Saw you're interested in getting ${jobPhrase}${cityPhrase} — what day and time works best for you?`;
+  return `Hey ${firstName}, it's Gabe from Kansas City TV Mounting! Saw you're interested in getting ${jobPhrase} — what day and time works best for you?`;
 }
 
 router.post('/webhook/facebook-lead', async (req, res) => {
@@ -48,7 +47,7 @@ router.post('/webhook/facebook-lead', async (req, res) => {
       await alertOwner(`New lead (Facebook Ad): ${name || phone}, ${city || 'no city'}`);
 
       try {
-        const opener = buildOpenerText(name, tv_size, has_mount, city);
+        const opener = buildOpenerText(name, tv_size, has_mount);
         await sendSMS(phone, opener);
         await logMessage(lead.id, 'assistant', opener);
       } catch (err) {
