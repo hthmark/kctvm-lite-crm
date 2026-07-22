@@ -11,6 +11,7 @@ const adminRoutes = require('./routes/admin');
 const leadsRoutes = require('./routes/leads');
 const paymentLinkRoutes = require('./routes/payment-link');
 const calculatorLeadRoutes = require('./routes/calculator-lead');
+const facebookLeadRoutes = require('./routes/facebook-lead');
 const { startFollowUpPoller } = require('./lib/poller');
 
 console.log('[OwnerAlert] OWNER_ALERT_PHONE present:', !!process.env.OWNER_ALERT_PHONE);
@@ -27,6 +28,7 @@ app.use(adminRoutes);
 app.use(leadsRoutes);
 app.use(paymentLinkRoutes);
 app.use(calculatorLeadRoutes);
+app.use(facebookLeadRoutes);
 
 const PORT = process.env.PORT || 3000;
 
