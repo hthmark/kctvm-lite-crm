@@ -10,8 +10,8 @@ const { alertOwner } = require('../lib/owner-alert');
 
 function sizeLabel(rawSize) {
   const val = String(rawSize || '').toLowerCase();
-  if (val.includes('smaller')) return 'a TV under 65"';
-  if (val.includes('larger')) return 'a TV over 65"';
+  if (val.includes('smaller')) return 'a TV under 65" mounted';
+  if (val.includes('larger')) return 'a TV over 65" mounted';
   return null;
 }
 
