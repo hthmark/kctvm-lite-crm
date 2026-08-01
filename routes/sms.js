@@ -63,6 +63,15 @@ router.post('/webhook/sms-inbound', async (req, res) => {
       return;
     }
 
+    // Reject short codes and malformed senders (e.g. "938763" from automated
+    // verification texts like X/Twitter OTPs). Real US numbers normalize to
+    // 10 or 11 digits; anything else isn't a legitimate customer lead.
+    const digitCount = from.replace(/\D/g, '').length;
+    if (digitCount !== 10 && digitCount !== 11) {
+      console.log('[Webhook] Ignoring non-standard sender (not a valid phone number): ' + from);
+      return;
+    }
+
     let lead = null;
     try {
       lead = await findLeadByPhone(phone);
