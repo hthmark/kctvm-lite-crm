@@ -6,7 +6,7 @@ const router = express.Router();
 const supabase = require('../lib/supabase');
 const { normalizePhone } = require('../lib/phone');
 const { findLeadByPhone, createLead, logMessage } = require('../lib/leads');
-const { sendSMS } = require('../lib/telnyx');
+const { sendSMS } = require('../lib/sms');
 const { alertOwner } = require('../lib/owner-alert');
 
 // Scoped to this route only — the calculator is embedded via Framer, so
@@ -85,8 +85,8 @@ router.post('/webhook/calculator-lead', async (req, res) => {
       if (!lead.quote_text_sent) {
         try {
           const confirmationText = buildConfirmationText(name, quoteDetails);
-          await sendSMS(phone, confirmationText);
-          await logMessage(lead.id, 'assistant', confirmationText);
+          const receipt = await sendSMS(phone, confirmationText);
+          await logMessage(lead.id, 'assistant', confirmationText, receipt);
           await supabase.from('leads').update({ quote_text_sent: true }).eq('id', lead.id);
         } catch (err) {
           console.error('[CalculatorLead] confirmation SMS error:', err.message);

@@ -5,7 +5,7 @@ const router = express.Router();
 const supabase = require('../lib/supabase');
 const { normalizePhone } = require('../lib/phone');
 const { findLeadByPhone, createLead, logMessage } = require('../lib/leads');
-const { sendSMS } = require('../lib/telnyx');
+const { sendSMS } = require('../lib/sms');
 const { alertOwner } = require('../lib/owner-alert');
 
 function sizeLabel(rawSize) {
@@ -48,8 +48,8 @@ router.post('/webhook/facebook-lead', async (req, res) => {
 
       try {
         const opener = buildOpenerText(name, tv_size, has_mount);
-        await sendSMS(phone, opener);
-        await logMessage(lead.id, 'assistant', opener);
+        const receipt = await sendSMS(phone, opener);
+        await logMessage(lead.id, 'assistant', opener, receipt);
       } catch (err) {
         console.error('[FacebookLead] opener SMS error:', err.message);
       }

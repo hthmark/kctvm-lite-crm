@@ -18,6 +18,8 @@ console.log('[OwnerAlert] OWNER_ALERT_PHONE present:', !!process.env.OWNER_ALERT
 
 const app = express();
 
+// Signature verification needs the original bytes, before express.json().
+app.use(require('./routes/quo'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
