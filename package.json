@@ -5,7 +5,8 @@
   "description": "Minimal customer-lead CRM for Kansas City TV Mounting",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "test": "node --test test/*.test.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.110.0",

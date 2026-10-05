@@ -3,7 +3,7 @@
 const express = require('express');
 const router = express.Router();
 const anthropic = require('../lib/anthropic');
-const { sendSMS } = require('../lib/telnyx');
+const { sendSMS } = require('../lib/sms');
 const { normalizePhone } = require('../lib/phone');
 const { findLeadByPhone, createLead, markLeadContacted, logMessage } = require('../lib/leads');
 const { alertOwner, truncate } = require('../lib/owner-alert');
@@ -100,16 +100,12 @@ router.post('/webhook/sms-inbound', async (req, res) => {
       const reply = await generateReply(text);
 
       try {
-        await sendSMS(phone, reply);
+        const receipt = await sendSMS(phone, reply);
+        await logMessage(lead.id, 'assistant', reply, receipt);
       } catch (err) {
         console.error('[Webhook] sendSMS error:', err.message);
       }
 
-      try {
-        await logMessage(lead.id, 'assistant', reply);
-      } catch (err) {
-        console.error('[Webhook] Assistant message insert error:', err.message);
-      }
     } else {
       try {
         await markLeadContacted(lead.id);

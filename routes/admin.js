@@ -3,7 +3,8 @@
 const express = require('express');
 const router = express.Router();
 const supabase = require('../lib/supabase');
-const { sendSMS } = require('../lib/telnyx');
+const { sendSMS } = require('../lib/sms');
+const { logMessage } = require('../lib/leads');
 
 router.post('/admin/send-sms', async (req, res) => {
   try {
@@ -18,13 +19,9 @@ router.post('/admin/send-sms', async (req, res) => {
     const lead = leads?.[0] ?? null;
     if (!lead) return res.status(404).json({ error: 'lead not found' });
 
-    await sendSMS(lead.phone, message);
-
-    const { data: inserted, error: insertError } = await supabase
-      .from('messages').insert({ lead_id, role: 'assistant', body: message }).select().limit(1);
-    if (insertError) throw insertError;
-
-    res.json(inserted?.[0] ?? null);
+    const receipt = await sendSMS(lead.phone, message);
+    const inserted = await logMessage(lead_id, 'assistant', message, receipt);
+    res.json(inserted);
   } catch (err) {
     console.error('[AdminSendSMS] error:', err.message);
     res.status(500).json({ error: 'failed to send message' });

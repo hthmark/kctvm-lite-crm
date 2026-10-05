@@ -2,7 +2,7 @@
 
 const express = require('express');
 const router = express.Router();
-const { sendSMS } = require('../lib/telnyx');
+const { sendSMS } = require('../lib/sms');
 const { normalizePhone } = require('../lib/phone');
 const { findLeadByPhone, createLead, markLeadContacted, logMessage } = require('../lib/leads');
 const { alertOwner } = require('../lib/owner-alert');
@@ -43,16 +43,12 @@ router.post('/webhook/missed-call', async (req, res) => {
       await alertOwner(`New lead (missed call): ${phone}`);
 
       try {
-        await sendSMS(phone, MISSED_CALL_REPLY);
+        const receipt = await sendSMS(phone, MISSED_CALL_REPLY);
+        await logMessage(lead.id, 'assistant', MISSED_CALL_REPLY, receipt);
       } catch (err) {
         console.error('[MissedCall] sendSMS error:', err.message);
       }
 
-      try {
-        await logMessage(lead.id, 'assistant', MISSED_CALL_REPLY);
-      } catch (err) {
-        console.error('[MissedCall] Assistant message insert error:', err.message);
-      }
     } else {
       try {
         await markLeadContacted(lead.id);
